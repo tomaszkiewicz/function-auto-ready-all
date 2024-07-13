@@ -30,7 +30,7 @@ env:
 
   # The package to push, without a version tag. The default matches GitHub. For
   # example xpkg.upbound.io/crossplane/function-template-go.
-  XPKG: xpkg.upbound.io/${{ github.repository}}
+  XPKG: xpkg.upbound.io/luktom/function-auto-ready-all
 
   # The package version to push. The default is 0.0.0-gitsha.
   XPKG_VERSION: ${{ inputs.version }}
@@ -70,7 +70,7 @@ jobs:
   # We want to build most packages for the amd64 and arm64 architectures. To
   # speed this up we build single-platform packages in parallel. We then upload
   # those packages to GitHub as a build artifact. The push job downloads those
-  # artifacts and pushes them as a single multi-platform package. 
+  # artifacts and pushes them as a single multi-platform package.
   build:
     runs-on: ubuntu-22.04
     strategy:
@@ -108,13 +108,13 @@ jobs:
           build-args:
             GO_VERSION=${{ env.GO_VERSION }}
           outputs: type=docker,dest=runtime-${{ matrix.arch }}.tar
-      
+
       - name: Setup the Crossplane CLI
         run: "curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh"
 
       - name: Build Package
         run: ./crossplane xpkg build --package-file=${{ matrix.arch }}.xpkg --package-root=package/ --embed-runtime-image-tarball=runtime-${{ matrix.arch }}.tar
-      
+
       - name: Upload Single-Platform Package
         uses: actions/upload-artifact@v3
         with:

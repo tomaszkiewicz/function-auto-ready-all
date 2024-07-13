@@ -1,5 +1,7 @@
-# function-auto-ready
+# function-auto-ready-all
 [![CI](https://github.com/crossplane-contrib/function-auto-ready/actions/workflows/ci.yml/badge.svg)](https://github.com/crossplane-contrib/function-auto-ready/actions/workflows/ci.yml) ![GitHub release (latest SemVer)](https://img.shields.io/github/release/crossplane-contrib/function-auto-ready)
+
+This is a form of original function-auto-ready that checks not only `Ready` condition of the resources inside the composition, but all conditions.
 
 This [composition function][docs-functions] automatically detects composed
 resources that are ready. It considers a composed resource ready if:
