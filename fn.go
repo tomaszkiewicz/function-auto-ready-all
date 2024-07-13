@@ -2,14 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/crossplane/function-sdk-go/resource"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	corev1 "k8s.io/api/core/v1"
-
 	fnv1beta1 "github.com/crossplane/function-sdk-go/proto/v1beta1"
 	"github.com/crossplane/function-sdk-go/request"
-	"github.com/crossplane/function-sdk-go/resource"
 	"github.com/crossplane/function-sdk-go/response"
 )
 
@@ -53,37 +53,53 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1beta1.RunFunctionRequ
 
 	// Our goal here is to automatically determine (from the Ready status
 	// condition) whether existing composed resources are ready.
+
 	for name, dr := range desired {
 		log := log.WithValues("composed-resource-name", name)
 
-		// If this desired resource doesn't exist in the observed resources, it
-		// can't be ready because it doesn't yet exist.
 		or, ok := observed[name]
 		if !ok {
 			log.Debug("Ignoring desired resource that does not appear in observed resources")
 			continue
 		}
 
-		// A previous Function in the pipeline either said this resource was
-		// explicitly ready, or explicitly not ready. We only want to
-		// automatically determine readiness for desired resources where no
-		// other Function has an opinion about their readiness.
 		if dr.Ready != resource.ReadyUnspecified {
 			log.Debug("Ignoring desired resource that already has explicit readiness", "ready", dr.Ready)
 			continue
 		}
 
-		// Now we know this resource exists, and no Function that ran before us
-		// has an opinion about whether it's ready.
-
 		log.Debug("Found desired resource with unknown readiness")
-		// Check if all conditions of the observed resource have status: True
-		conditions := or.Resource.GetConditions()
+
+		// Extract conditions from the unstructured resource
+		conditions, found, err := unstructured.NestedSlice(or.Resource.Object, "status", "conditions")
+		if err != nil {
+			log.Debug("Error getting conditions", "error", err)
+			continue
+		}
+		if !found {
+			log.Debug("No conditions found in resource")
+			continue
+		}
+
 		allTrue := true
 		for _, c := range conditions {
-			if c.Status != corev1.ConditionTrue {
+			condition, ok := c.(map[string]interface{})
+			if !ok {
+				log.Debug("Invalid condition format")
 				allTrue = false
-				log.Debug("Found condition that is not True", "condition", c.Type, "status", c.Status)
+				break
+			}
+
+			status, ok := condition["status"].(string)
+			if !ok {
+				log.Debug("Invalid status format in condition")
+				allTrue = false
+				break
+			}
+
+			if status != string(corev1.ConditionTrue) {
+				allTrue = false
+				log.Debug("Found condition that is not True", "condition", condition["type"], "status", status)
 				break
 			}
 		}
