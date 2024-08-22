@@ -7,6 +7,9 @@
 *.dll
 *.so
 *.dylib
+*.tar
+function-auto-ready
+*.xpkg
 
 # Test binary, built with `go test -c`
 *.test
