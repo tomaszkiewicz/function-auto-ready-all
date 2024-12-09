@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	v1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/errors"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -12,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"strings"
 )
 
 // Function returns whatever response you ask it to.
@@ -152,22 +153,36 @@ func (f *Function) RunFunction(_ context.Context, req *fnv1beta1.RunFunctionRequ
 	//	return rsp, nil
 	//}
 
-	log.Info("Setting condition for XR composite condition")
+	xrCondition := oxr.Resource.GetCondition("NoErrors")
 
-	xrCondition := v1.Condition{
-		Type:               "NoErrors",
-		Status:             corev1.ConditionTrue,
-		LastTransitionTime: v12.Now(),
-		Reason:             v1.ReasonAvailable,
-		Message:            "",
+	if xrCondition.Type != "NoErrors" || xrCondition.Reason != v1.ReasonAvailable {
+		log.Info("Condition does not exist or is not available", "type", xrCondition.Type, "reason", xrCondition.Reason, "message", xrCondition.Message)
+		xrCondition.Type = "NoErrors"
+		xrCondition.Status = corev1.ConditionTrue
+		xrCondition.Reason = v1.ReasonAvailable
+		xrCondition.LastTransitionTime = v12.Now()
+		xrCondition.Message = ""
 	}
 
-	if len(erroredFields) > 0 {
-		log.Info("Setting error for XR composite condition")
+	status := xrCondition.Status
+	reason := xrCondition.Reason
+	message := xrCondition.Message
 
-		xrCondition.Status = corev1.ConditionFalse
-		xrCondition.Reason = v1.ReasonReconcileError
-		xrCondition.Message = fmt.Sprintf("Unready conditions:\n %s", strings.Join(erroredFields, "\n"))
+	if len(erroredFields) > 0 {
+		log.Info("There are errors detected for XR", "count", len(erroredFields))
+
+		status = corev1.ConditionFalse
+		reason = v1.ReasonReconcileError
+		message = fmt.Sprintf("Unready conditions:\n %s", strings.Join(erroredFields, "\n"))
+	}
+
+	if status != xrCondition.Status || reason != xrCondition.Reason || message != xrCondition.Message {
+		xrCondition.Status = status
+		xrCondition.Reason = reason
+		xrCondition.Message = message
+		xrCondition.LastTransitionTime = v12.Now()
+
+		log.Info("Setting XR composite condition", "status", status, "reason", reason, "message", message)
 	}
 
 	xr.Resource.SetConditions(xrCondition)
